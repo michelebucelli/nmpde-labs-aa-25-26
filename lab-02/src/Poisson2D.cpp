@@ -1,9 +1,5 @@
 #include "Poisson2D.hpp"
 
-#include <deal.II/grid/grid_in.h>
-
-#include <filesystem>
-
 void
 Poisson2D::setup()
 {
@@ -11,6 +7,9 @@ Poisson2D::setup()
 
   // Create the mesh.
   {
+    std::cout << "Initializing the mesh" << std::endl;
+
+    // Read the mesh from file.
     GridIn<dim> grid_in;
     grid_in.attach_triangulation(mesh);
 
@@ -91,6 +90,9 @@ Poisson2D::assemble()
                           update_values | update_gradients |
                             update_quadrature_points | update_JxW_values);
 
+  // Since we need to compute integrals on the boundary for Neumann conditions,
+  // we also need a FEValues object to compute quantities on boundary edges
+  // (faces).
   FEFaceValues<dim> fe_values_boundary(*fe,
                                        *quadrature_boundary,
                                        update_values |
@@ -123,11 +125,10 @@ Poisson2D::assemble()
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
-                  cell_matrix(i, j) +=
-                    mu_loc *                                     //
-                    scalar_product(fe_values.shape_grad(i, q),   //
-                                   fe_values.shape_grad(j, q)) * //
-                    fe_values.JxW(q);
+                  cell_matrix(i, j) += mu_loc *                     //
+                                       fe_values.shape_grad(i, q) * //
+                                       fe_values.shape_grad(j, q) * //
+                                       fe_values.JxW(q);
                 }
 
               cell_rhs(i) += f_loc *                       //
@@ -136,28 +137,30 @@ Poisson2D::assemble()
             }
         }
 
+      // If the cell is adjacent to the boundary...
       if (cell->at_boundary())
         {
-          for (unsigned int f = 0; f < cell->n_faces(); ++f)
+          // ...we loop over its edges (referred to as faces in the deal.II
+          // jargon).
+          for (unsigned int face_number = 0; face_number < cell->n_faces();
+               ++face_number)
             {
-              if (cell->face(f)->at_boundary() &&
-                  (cell->face(f)->boundary_id() == 2 ||
-                   cell->face(f)->boundary_id() == 3))
+              // If current face lies on the boundary, and its boundary ID (or
+              // tag) is that of one of the Neumann boundaries, we assemble the
+              // boundary integral.
+              if (cell->face(face_number)->at_boundary() &&
+                  (cell->face(face_number)->boundary_id() == 2 ||
+                   cell->face(face_number)->boundary_id() == 3))
                 {
-                  fe_values_boundary.reinit(cell, f);
+                  fe_values_boundary.reinit(cell, face_number);
 
                   for (unsigned int q = 0; q < quadrature_boundary->size(); ++q)
                     {
-                      const auto h_loc =
-                        h(fe_values_boundary.quadrature_point(q));
-
                       for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                        {
-                          cell_rhs(i) +=
-                            h_loc *                                //
-                            fe_values_boundary.shape_value(i, q) * //
-                            fe_values_boundary.JxW(q);
-                        }
+                        cell_rhs(i) +=
+                          h(fe_values_boundary.quadrature_point(q)) * //
+                          fe_values_boundary.shape_value(i, q) *      //
+                          fe_values_boundary.JxW(q);
                     }
                 }
             }
@@ -214,6 +217,8 @@ Poisson2D::output() const
   data_out.add_data_vector(dof_handler, solution, "solution");
   data_out.build_patches();
 
+  // Use std::filesystem to construct the output file name based on the
+  // mesh file name.
   const std::filesystem::path mesh_path(mesh_file_name);
   const std::string           output_file_name =
     "output-" + mesh_path.stem().string() + ".vtk";

@@ -1,23 +1,23 @@
-#include "Poisson2D.hpp"
+#include "DiffusionReaction.hpp"
 
 void
-Poisson2D::setup()
+DiffusionReaction::setup()
 {
   std::cout << "===============================================" << std::endl;
 
   // Create the mesh.
   {
     std::cout << "Initializing the mesh" << std::endl;
-    GridGenerator::subdivided_hyper_cube(mesh, N_el, 0.0, 1.0, true);
+
+    // Read the mesh from file.
+    GridIn<dim> grid_in;
+    grid_in.attach_triangulation(mesh);
+
+    std::ifstream mesh_file(mesh_file_name);
+    grid_in.read_msh(mesh_file);
+
     std::cout << "  Number of elements = " << mesh.n_active_cells()
               << std::endl;
-
-    // Write the mesh to file.
-    const std::string mesh_file_name = "mesh-" + std::to_string(N_el) + ".vtk";
-    GridOut           grid_out;
-    std::ofstream     grid_out_file(mesh_file_name);
-    grid_out.write_vtk(mesh, grid_out_file);
-    std::cout << "  Mesh saved to " << mesh_file_name << std::endl;
   }
 
   std::cout << "-----------------------------------------------" << std::endl;
@@ -72,7 +72,7 @@ Poisson2D::setup()
 }
 
 void
-Poisson2D::assemble()
+DiffusionReaction::assemble()
 {
   std::cout << "===============================================" << std::endl;
 
@@ -84,17 +84,10 @@ Poisson2D::assemble()
   // Number of quadrature points for each element.
   const unsigned int n_q = quadrature->size();
 
-  FEValues<dim> fe_values(
-    *fe,
-    *quadrature,
-    // Here we specify what quantities we need FEValues to compute on
-    // quadrature points. For our test, we need:
-    // - the values of shape functions (update_values);
-    // - the derivative of shape functions (update_gradients);
-    // - the position of quadrature points (update_quadrature_points);
-    // - the quadrature weights (update_JxW_values).
-    update_values | update_gradients | update_quadrature_points |
-      update_JxW_values);
+  FEValues<dim> fe_values(*fe,
+                          *quadrature,
+                          update_values | update_gradients |
+                            update_quadrature_points | update_JxW_values);
 
   // Local matrix and vector.
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
@@ -115,8 +108,9 @@ Poisson2D::assemble()
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
-          const double mu_loc = mu(fe_values.quadrature_point(q));
-          const double f_loc  = f(fe_values.quadrature_point(q));
+          const double mu_loc    = mu(fe_values.quadrature_point(q));
+          const double sigma_loc = sigma(fe_values.quadrature_point(q));
+          const double f_loc     = f(fe_values.quadrature_point(q));
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
@@ -125,6 +119,11 @@ Poisson2D::assemble()
                   cell_matrix(i, j) += mu_loc *                     //
                                        fe_values.shape_grad(i, q) * //
                                        fe_values.shape_grad(j, q) * //
+                                       fe_values.JxW(q);
+
+                  cell_matrix(i, j) += sigma_loc *                   //
+                                       fe_values.shape_value(i, q) * //
+                                       fe_values.shape_value(j, q) * //
                                        fe_values.JxW(q);
                 }
 
@@ -148,6 +147,8 @@ Poisson2D::assemble()
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
     boundary_functions[0] = &bc_function;
     boundary_functions[1] = &bc_function;
+    boundary_functions[2] = &bc_function;
+    boundary_functions[3] = &bc_function;
 
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
@@ -159,7 +160,7 @@ Poisson2D::assemble()
 }
 
 void
-Poisson2D::solve()
+DiffusionReaction::solve()
 {
   std::cout << "===============================================" << std::endl;
 
@@ -176,7 +177,7 @@ Poisson2D::solve()
 }
 
 void
-Poisson2D::output() const
+DiffusionReaction::output() const
 {
   std::cout << "===============================================" << std::endl;
 
@@ -185,8 +186,11 @@ Poisson2D::output() const
   data_out.add_data_vector(dof_handler, solution, "solution");
   data_out.build_patches();
 
-  const std::string output_file_name =
-    "output-" + std::to_string(N_el) + ".vtk";
+  // Use std::filesystem to construct the output file name based on the
+  // mesh file name.
+  const std::filesystem::path mesh_path(mesh_file_name);
+  const std::string           output_file_name =
+    "output-" + mesh_path.stem().string() + ".vtk";
   std::ofstream output_file(output_file_name);
   data_out.write_vtk(output_file);
 
@@ -196,13 +200,21 @@ Poisson2D::output() const
 }
 
 double
-Poisson2D::compute_error(const VectorTools::NormType &norm_type,
-                         const Function<dim>         &exact_solution) const
+DiffusionReaction::compute_error(const VectorTools::NormType &norm_type,
+                                 const Function<dim> &exact_solution) const
 {
   const QGaussSimplex<dim> quadrature_error(r + 2);
 
+  // For triangular meshes, we need to explicitly provide a Mapping (the mapping
+  // between the reference element and the individual elements in the mesh) to
+  // integrate_difference. These two commands construct the most basic linear
+  // mapping.
+  FE_SimplexP<dim> fe_linear(1);
+  MappingFE        mapping(fe_linear);
+
   Vector<double> error_per_cell(mesh.n_active_cells());
-  VectorTools::integrate_difference(dof_handler,
+  VectorTools::integrate_difference(mapping,
+                                    dof_handler,
                                     solution,
                                     exact_solution,
                                     error_per_cell,
