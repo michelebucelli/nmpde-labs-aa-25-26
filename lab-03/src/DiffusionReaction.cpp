@@ -145,10 +145,8 @@ DiffusionReaction::assemble()
     Functions::ZeroFunction<dim>              bc_function;
 
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
-    boundary_functions[0] = &bc_function;
-    boundary_functions[1] = &bc_function;
-    boundary_functions[2] = &bc_function;
-    boundary_functions[3] = &bc_function;
+    for (unsigned int i = 0; i < 6; ++i)
+      boundary_functions[i] = &bc_function;
 
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
@@ -164,14 +162,29 @@ DiffusionReaction::solve()
 {
   std::cout << "===============================================" << std::endl;
 
-  ReductionControl solver_control(/* maxiter = */ 1000,
+  // PreconditionIdentity preconditioner;
+
+  // PreconditionJacobi preconditioner;
+  // preconditioner.initialize(system_matrix);
+
+  // PreconditionSOR preconditioner;
+  // preconditioner.initialize(
+  //   system_matrix,
+  //   PreconditionSOR<SparseMatrix<double>>::AdditionalData(1.0));
+
+  PreconditionSSOR preconditioner;
+  preconditioner.initialize(
+    system_matrix, PreconditionSSOR<SparseMatrix<double>>::AdditionalData(1.0));
+
+  ReductionControl solver_control(/* maxiter = */ 10000,
                                   /* tolerance = */ 1.0e-16,
                                   /* reduce = */ 1.0e-6);
 
   SolverCG<Vector<double>> solver(solver_control);
 
   std::cout << "  Solving the linear system" << std::endl;
-  solver.solve(system_matrix, solution, system_rhs, PreconditionIdentity());
+
+  solver.solve(system_matrix, solution, system_rhs, preconditioner);
   std::cout << "  " << solver_control.last_step() << " CG iterations"
             << std::endl;
 }
@@ -205,10 +218,6 @@ DiffusionReaction::compute_error(const VectorTools::NormType &norm_type,
 {
   const QGaussSimplex<dim> quadrature_error(r + 2);
 
-  // For triangular meshes, we need to explicitly provide a Mapping (the mapping
-  // between the reference element and the individual elements in the mesh) to
-  // integrate_difference. These two commands construct the most basic linear
-  // mapping.
   FE_SimplexP<dim> fe_linear(1);
   MappingFE        mapping(fe_linear);
 
