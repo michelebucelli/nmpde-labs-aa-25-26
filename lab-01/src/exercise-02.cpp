@@ -20,13 +20,13 @@ public:
         const unsigned int /*component*/ = 0) const override
   {
     // Points 3 and 4.
-    return std::sin(2.0 * M_PI * p[0]);
+    // return std::sin(2.0 * M_PI * p[0]);
 
     // Point 5.
-    // if (p[0] < 0.5)
-    //   return A * p[0];
-    // else
-    //   return A * p[0] + 4.0 / 15.0 * std::pow(p[0] - 0.5, 2.5);
+    if (p[0] < 0.5)
+      return A * p[0];
+    else
+      return A * p[0] + 4.0 / 15.0 * std::pow(p[0] - 0.5, 2.5);
   }
 
   // Gradient evaluation.
@@ -41,13 +41,13 @@ public:
     Tensor<1, dim> result;
 
     // Points 3 and 4.
-    result[0] = 2.0 * M_PI * std::cos(2.0 * M_PI * p[0]);
+    // result[0] = 2.0 * M_PI * std::cos(2.0 * M_PI * p[0]);
 
     // Point 5.
-    // if (p[0] < 0.5)
-    //   result[0] = A;
-    // else
-    //   result[0] = A + 2.0 / 3.0 * std::pow(p[0] - 0.5, 1.5);
+    if (p[0] < 0.5)
+      result[0] = A;
+    else
+      result[0] = A + 2.0 / 3.0 * std::pow(p[0] - 0.5, 1.5);
 
     return result;
   }
@@ -66,13 +66,13 @@ main(int /*argc*/, char * /*argv*/[])
   const auto mu = [](const Point<dim> & /*p*/) { return 1.0; };
   const auto f  = [](const Point<dim> &p) {
     // Points 3 and 4.
-    return 4.0 * M_PI * M_PI * std::sin(2.0 * M_PI * p[0]);
+    // return 4.0 * M_PI * M_PI * std::sin(2.0 * M_PI * p[0]);
 
     // Point 5.
-    // if (p[0] < 0.5)
-    //   return 0.0;
-    // else
-    //   return -std::sqrt(p[0] - 0.5);
+    if (p[0] < 0.5)
+      return 0.0;
+    else
+      return -std::sqrt(p[0] - 0.5);
   };
 
   const ExactSolution exact_solution;
