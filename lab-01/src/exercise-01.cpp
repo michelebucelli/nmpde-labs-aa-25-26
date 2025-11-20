@@ -1,5 +1,32 @@
 #include <iostream>
 
+/**
+ * @brief deal.II ParameterHandler utilities.
+ *
+ * The header <deal.II/base/parameter_handler.h> provides the
+ * deal::ParameterHandler class used to declare, document, parse and validate
+ * named runtime parameters (typically read from a .prm file). Typical
+ * responsibilities when including this header:
+ *  - declare parameters with declare_entry(name, default, pattern,
+ * description),
+ *  - read/parse parameter files via parse_input_file(filename) or
+ * parse_input(),
+ *  - query parameter values with get(name) and convert them to the required
+ * type (use utility functions or std::stringstream for conversion),
+ *  - validate values using regex-style patterns or custom checks.
+ *
+ * Practical notes:
+ *  - Use clear parameter names and descriptions so auto-generated .prm files
+ * are self-documenting.
+ *  - Prefer strict patterns when declaring entries to catch configuration
+ * errors early (e.g., integer, double, boolean patterns).
+ *  - After parsing, retrieve values and convert to the appropriate C++ types
+ *    before using them in numerical setup.
+ *
+ * See the deal.II documentation for full API details of deal::ParameterHandler.
+ */
+#include <deal.II/base/parameter_handler.h>
+
 #include "Poisson1D.hpp"
 
 // Main function.
@@ -15,22 +42,48 @@ main(int /*argc*/, char * /*argv*/[])
    */
   constexpr unsigned int dim = Poisson1D::dim;
 
-  /**
-   * @brief Number of elements in the mesh partition `(0,1)`.
-   *
-   * This value determines the discretization level for the finite element
-   * method.
-   * @note changed from 40 -> 20 since the text is asking for `N_el = 20`.
+  // -----------------------------------------------------------------------
+  // NEW: PARAMETER HANDLING SECTION
+  // -----------------------------------------------------------------------
 
-   */
-  const unsigned int N_el = 20;
+  // 1. Create the ParameterHandler object.
+  ParameterHandler prm;
 
-  /**
-   * @brief The finite element polynomial degree.
-   *
-   * For `r=1`, the elements are linear `(P_1)`.
-   */
-  const unsigned int r = 1;
+  // 2. Declare the entries.
+  // We tell the handler: "Expect a parameter named `Mesh elements`".
+  // - `Default value`: "10"
+  // - `Pattern`: It must be an `Integer` (`Patterns::Integer`)
+  // - `Documentation`: A help string describing it.
+  prm.declare_entry("Mesh elements",
+                    "10",
+                    Patterns::Integer(),
+                    "Number of elements in the mesh partition (0,1)");
+
+  prm.declare_entry("Polynomial degree",
+                    "1",
+                    Patterns::Integer(),
+                    "The finite element polynomial degree");
+
+  // 3. Read the file.
+  // We assume the file is named `parameters.prm` and is in the execution dir.
+  prm.parse_input("parameters.prm");
+  
+  // 4. Retrieve the values
+  // The handler reads them as strings/ints, we cast them to what we need.
+  const unsigned int N_el = prm.get_integer("Mesh elements");
+  const unsigned int r    = prm.get_integer("Polynomial degree");
+
+  // Optional but useful: Print to the console to verify
+  std::cout << "Reading parameters from file:" << std::endl
+            << " - N_el: " << N_el << std::endl
+            << " - r:    " << r << std::endl;
+  // std::cout << "Reading parameters form file: " << '\n'
+  //           << " - N_el: " << N_el << '\n'
+  //           << " - r: " << r << '\n';
+
+  // -----------------------------------------------------------------------
+  // END PARAMETER HANDLING
+  // -----------------------------------------------------------------------
 
   /**
    * @brief Lambda function implementing the diffusion coefficient mu(x).
@@ -59,6 +112,8 @@ main(int /*argc*/, char * /*argv*/[])
    * - mesh divided into `N_el` elements,
    * - FE of grade `r`,
    * coefficients `mu` and `f` given by the lambda function.
+   *
+   * @note the problem is now initialized using the variables `N_el` and `r` we just read.
    */
   Poisson1D problem(N_el, r, mu, f);
 
