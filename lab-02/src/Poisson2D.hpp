@@ -35,7 +35,7 @@ class Poisson2D
 {
 public:
   // Physical dimension (1D, 2D, 3D)
-  static constexpr unsigned int dim = ;
+  static constexpr unsigned int dim = 2;
 
   // Constructor.
   Poisson2D(const unsigned int                              &N_el_,
