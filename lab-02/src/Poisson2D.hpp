@@ -10,7 +10,6 @@
 #include <deal.II/fe/fe_values.h>
 
 #include <deal.II/grid/grid_generator.h>
-#include <deal.II/grid/grid_in.h>
 #include <deal.II/grid/grid_out.h>
 #include <deal.II/grid/tria.h>
 
@@ -24,7 +23,6 @@
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
 
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 
@@ -37,39 +35,17 @@ class Poisson2D
 {
 public:
   // Physical dimension (1D, 2D, 3D)
-  static constexpr unsigned int dim = 2;
-
-  // Dirichlet boundary function.
-  //
-  // This is implemented as a dealii::Function<dim>, instead of e.g. a lambda
-  // function, because this allows to use dealii boundary utilities directly.
-  class FunctionG : public Function<dim>
-  {
-  public:
-    // Constructor.
-    FunctionG()
-    {}
-
-    // Evaluation.
-    virtual double
-    value(const Point<dim> &p,
-          const unsigned int /*component*/ = 0) const override
-    {
-      return p[0] + p[1];
-    }
-  };
+  static constexpr unsigned int dim = ;
 
   // Constructor.
-  Poisson2D(const std::string                               &mesh_file_name_,
+  Poisson2D(const unsigned int                              &N_el_,
             const unsigned int                              &r_,
             const std::function<double(const Point<dim> &)> &mu_,
-            const std::function<double(const Point<dim> &)> &f_,
-            const std::function<double(const Point<dim> &)> &h_)
-    : mesh_file_name(mesh_file_name_)
+            const std::function<double(const Point<dim> &)> &f_)
+    : N_el(N_el_)
     , r(r_)
     , mu(mu_)
     , f(f_)
-    , h(h_)
   {}
 
   // Initialization.
@@ -88,9 +64,14 @@ public:
   void
   output() const;
 
+  // Compute the error against a given exact solution.
+  double
+  compute_error(const VectorTools::NormType &norm_type,
+                const Function<dim>         &exact_solution) const;
+
 protected:
-  // Name of the mesh.
-  const std::string mesh_file_name;
+  // Number of elements.
+  const unsigned int N_el;
 
   // Polynomial degree.
   const unsigned int r;
@@ -101,20 +82,25 @@ protected:
   // Forcing term.
   std::function<double(const Point<dim> &)> f;
 
-  // Neumann boundary condition.
-  std::function<double(const Point<dim> &)> h;
-
   // Triangulation.
   Triangulation<dim> mesh;
 
   // Finite element space.
+  //
+  // We use a unique_ptr here so that we can choose the type and degree of the
+  // finite elements at runtime (the degree is a constructor parameter).
+  //
+  // The class FiniteElement<dim> is an abstract class from which all types of
+  // finite elements implemented by deal.ii inherit. Using the abstract class
+  // makes it very easy to switch between different types of FE space among the
+  // many that deal.ii provides.
   std::unique_ptr<FiniteElement<dim>> fe;
 
   // Quadrature formula.
+  //
+  // We use a unique_ptr here so that we can choose the type and order of the
+  // quadrature formula at runtime (the order is a constructor parameter).
   std::unique_ptr<Quadrature<dim>> quadrature;
-
-  // Quadrature formula for boundary integrals.
-  std::unique_ptr<Quadrature<dim - 1>> quadrature_boundary;
 
   // DoF handler.
   DoFHandler<dim> dof_handler;
