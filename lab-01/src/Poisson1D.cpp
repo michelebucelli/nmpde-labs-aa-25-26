@@ -3,6 +3,24 @@
 void
 Poisson1D::setup()
 {
+  /**
+   * @brief RAII scope timer that measures the duration of the "setup" phase.
+   *
+   * @details Constructs a TimerOutput::Scope bound to the TimerOutput instance
+   * `computing_timer` and the section name "setup". The timer starts on
+   * construction and stops on destruction, automatically recording the elapsed
+   * duration under the "setup" entry in `computing_timer`. Because stopping is
+   * performed in the destructor, the elapsed time is recorded even if the scope
+   * is exited due to an exception (stack unwinding).
+   *
+   * @note Keep this object alive for the entire region whose execution time should be measured.
+   * The scope timer enforces lifetime semantics (typically non-copyable) so
+   * that start/stop behavior is correctly paired with the object's scope.
+   *
+   * @see TimerOutput
+   */
+  TimerOutput::Scope t(computing_timer, "setup");
+
   std::cout << "===============================================" << std::endl;
 
   // Create the mesh.
@@ -144,6 +162,9 @@ Poisson1D::setup()
 void
 Poisson1D::assemble()
 {
+  // same as above.
+  TimerOutput::Scope t(computing_timer, "assemble");
+
   std::cout << "===============================================" << std::endl;
 
   std::cout << "  Assembling the linear system" << std::endl;
@@ -292,6 +313,9 @@ Poisson1D::assemble()
 void
 Poisson1D::solve()
 {
+  // same as above
+  TimerOutput::Scope t(computing_timer, "solve");
+
   std::cout << "===============================================" << std::endl;
 
   // Specify the maximum number of iterations, absolute tolerance, and relative
@@ -319,6 +343,8 @@ Poisson1D::solve()
 void
 Poisson1D::output() const
 {
+  TimerOutput::Scope t(computing_timer, "output");
+
   std::cout << "===============================================" << std::endl;
 
   // The `DataOut` class manages writing the results to a file.
