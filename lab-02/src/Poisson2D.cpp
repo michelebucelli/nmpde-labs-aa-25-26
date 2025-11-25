@@ -36,7 +36,15 @@ Poisson2D::setup()
   // Create the mesh.
   {
     std::cout << "Initializing the mesh" << std::endl;
-    GridGenerator::subdivided_hyper_cube(mesh, N_el, 0.0, 1.0, true);
+
+    // 1. Create a temporary mesh of squares (Quads)
+    Triangulation<dim> quad_mesh;
+    GridGenerator::subdivided_hyper_cube(quad_mesh, N_el, 0.0, 1.0, true);
+
+    // 2. Convert the squares to triangles (Simplex) and store in the main
+    // 'mesh'
+    GridGenerator::convert_hypercube_to_simplex_mesh(quad_mesh, mesh);
+
     std::cout << "  Number of elements = " << mesh.n_active_cells()
               << std::endl;
 
