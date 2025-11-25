@@ -35,6 +35,8 @@ class Poisson2D
 {
 public:
   // Physical dimension (1D, 2D, 3D)
+  // this tells the compiler to use Quadrilaterals/Triangles (2D) instead
+  // of Lines (1D) also ensures vectors have 2 components (x, y).
   static constexpr unsigned int dim = 2;
 
   // Constructor.
