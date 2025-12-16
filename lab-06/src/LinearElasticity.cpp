@@ -147,7 +147,19 @@ LinearElasticity::assemble_system()
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
-                {}
+                {
+                  cell_matrix(i, j) +=
+                    (mu *
+                       scalar_product(fe_values[displacement].gradient(j, q),
+                                      fe_values[displacement].gradient(i, q)) +
+                     lambda * fe_values[displacement].divergence(j, q) *
+                       fe_values[displacement].divergence(i, q)) *
+                    fe_values.JxW(q);
+                }
+
+              cell_rhs(i) +=
+                scalar_product(f, fe_values[displacement].value(i, q)) *
+                fe_values.JxW(q);
             }
         }
 
